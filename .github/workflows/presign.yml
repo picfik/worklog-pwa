@@ -26,4 +26,9 @@ jobs:
           OSS_BUCKET: ${{ vars.OSS_BUCKET }}
           OSS_REGION: ${{ vars.OSS_REGION }}
           OSS_ENDPOINT: ${{ vars.OSS_ENDPOINT }}
-        run: npm run presign
+        run: npm run presign > presign.json
+      - name: Upload presign result
+        uses: actions/upload-artifact@v4
+        with:
+          name: presign
+          path: presign.json
