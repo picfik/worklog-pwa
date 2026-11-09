@@ -445,22 +445,24 @@ export function AttachmentPanel({
                     const uploaded = Boolean(attachment.ossKey);
                     return (
                       <li key={attachment.id} className="py-3">
-                        <div className="flex flex-wrap items-start gap-2">
-                          <span className="text-lg" aria-hidden="true">{fileIcon(attachment)}</span>
-                          <div className="min-w-0 flex-1">
-                            <p className="break-all text-sm font-medium text-slate-800">
-                              {attachment.name}
-                            </p>
-                            <p className="mt-0.5 text-xs text-slate-400">
-                              {attachment.ext ? `${attachment.ext.toUpperCase()} · ` : ""}
-                              {formatFileSize(attachment.size)}
-                              {uploaded ? ` · ${new Date(attachment.uploadedAt).toLocaleString("zh-CN")}` : " · 待上传"}
-                            </p>
-                            {attachment.note && (
-                              <p className="mt-1 break-words text-xs text-slate-500">{attachment.note}</p>
-                            )}
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-2">
+                          <div className="flex min-w-0 flex-1 items-start gap-2">
+                            <span className="text-lg" aria-hidden="true">{fileIcon(attachment)}</span>
+                            <div className="min-w-0 flex-1">
+                              <p className="break-all text-sm font-medium text-slate-800">
+                                {attachment.name}
+                              </p>
+                              <p className="mt-0.5 text-xs text-slate-400">
+                                {attachment.ext ? `${attachment.ext.toUpperCase()} · ` : ""}
+                                {formatFileSize(attachment.size)}
+                                {uploaded ? ` · ${new Date(attachment.uploadedAt).toLocaleString("zh-CN")}` : " · 待上传"}
+                              </p>
+                              {attachment.note && (
+                                <p className="mt-1 break-words text-xs text-slate-500">{attachment.note}</p>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex flex-wrap items-center gap-1">
+                          <div className="flex flex-wrap items-center gap-1 pl-7 sm:pl-0">
                             {canPreview(attachment) && uploaded && (
                               <button
                                 type="button"
