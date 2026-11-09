@@ -7,8 +7,8 @@ import {
   saveData
 } from "@/store/dataRepository";
 import { getPendingUploads } from "@/store/pendingUploadsRepository";
-import { takePresignUrl } from "@/store/presignPoolRepository";
 import { addSyncLog, getSyncLog } from "@/store/syncLogRepository";
+import { signOssUrl } from "@/oss/ossClient";
 import {
   deserializeShards,
   diffShards,
@@ -57,7 +57,7 @@ let syncStatus: SyncStatus = {
 let activeSync: Promise<SyncOutcome> | undefined;
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "同步失败，请检查网络及预签名 URL";
+  return error instanceof Error ? error.message : "同步失败，请检查网络及 OSS 配置";
 }
 
 function publishStatus(status: SyncStatus): void {
@@ -140,13 +140,10 @@ async function logSync(action: string, success: boolean, message?: string): Prom
 }
 
 async function readManifest(): Promise<Manifest> {
-  const presign = await takePresignUrl("get", MANIFEST_KEY);
-  if (!presign) {
-    throw new Error("没有匹配且未过期的 manifest GET 预签名 URL，请重新生成预签名池");
-  }
+  const url = await signOssUrl("GET", MANIFEST_KEY);
   let response: Response;
   try {
-    response = await fetch(presign.url);
+    response = await fetch(url);
   } catch {
     throw new Error("网络中断，无法读取远端 manifest");
   }
@@ -156,7 +153,7 @@ async function readManifest(): Promise<Manifest> {
   if (!response.ok) {
     throw new Error(
       response.status === 403
-        ? "manifest GET 预签名 URL 已失效，请重新生成预签名池"
+        ? "OSS 拒绝访问，请检查 AccessKey 配置与权限"
         : `读取远端 manifest 失败（HTTP ${response.status}）`
     );
   }
@@ -170,13 +167,10 @@ async function readManifest(): Promise<Manifest> {
 }
 
 async function putObject(key: string, content: string): Promise<void> {
-  const presign = await takePresignUrl("put", key, "application/json");
-  if (!presign) {
-    throw new Error(`没有匹配且未过期的 PUT 预签名 URL（${key}），请重新生成预签名池`);
-  }
+  const url = await signOssUrl("PUT", key, "application/json");
   let response: Response;
   try {
-    response = await fetch(presign.url, {
+    response = await fetch(url, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: content
@@ -187,7 +181,7 @@ async function putObject(key: string, content: string): Promise<void> {
   if (!response.ok) {
     throw new Error(
       response.status === 403
-        ? `${key} 的 PUT 预签名 URL 已失效，请重新生成预签名池`
+        ? `上传 ${key} 被 OSS 拒绝，请检查 AccessKey 配置与权限`
         : `上传 ${key} 失败（HTTP ${response.status}）`
     );
   }
@@ -195,20 +189,17 @@ async function putObject(key: string, content: string): Promise<void> {
 
 async function getObject(name: ShardName, expectedHash: string): Promise<string> {
   const key = shardObjectKey(name);
-  const presign = await takePresignUrl("get", key);
-  if (!presign) {
-    throw new Error(`没有匹配且未过期的 GET 预签名 URL（${key}），请重新生成预签名池`);
-  }
+  const url = await signOssUrl("GET", key);
   let response: Response;
   try {
-    response = await fetch(presign.url);
+    response = await fetch(url);
   } catch {
     throw new Error(`网络中断，无法下载 ${key}`);
   }
   if (!response.ok) {
     throw new Error(
       response.status === 403
-        ? `${key} 的 GET 预签名 URL 已失效，请重新生成预签名池`
+        ? `下载 ${key} 被 OSS 拒绝，请检查 AccessKey 配置与权限`
         : `下载 ${key} 失败（HTTP ${response.status}）`
     );
   }

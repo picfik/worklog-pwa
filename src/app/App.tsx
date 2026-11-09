@@ -126,7 +126,7 @@ function BootGate() {
               重试首次同步
             </button>
             <Link to="/settings" className="text-sm text-blue-700 underline">
-              前往设置检查预签名 URL
+              前往设置检查 OSS AccessKey 配置
             </Link>
           </>
         )}

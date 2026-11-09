@@ -288,7 +288,7 @@ export function AttachmentPanel({
         <div>
           <h2 className="font-semibold text-slate-900">任务附件</h2>
           <p className="mt-1 text-xs text-slate-500">
-            预签名 PUT/GET URL 仅存本机；附件本体直接传至 OSS。
+            附件本体带签名直传 OSS；密钥仅存本机浏览器。
           </p>
         </div>
         <button

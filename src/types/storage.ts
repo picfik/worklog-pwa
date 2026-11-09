@@ -20,6 +20,8 @@ export interface OssConfig {
   bucket: string;
   region: string;
   endpoint: string;
+  accessKeyId: string;
+  accessKeySecret: string;
 }
 
 export interface AppConfig {

@@ -14,13 +14,6 @@ export {
   getPendingUploads,
   removePendingUpload
 } from "@/store/pendingUploadsRepository";
-export {
-  addPresignUrls,
-  clearPresignPool,
-  getPresignPool,
-  takeAttachmentPutUrl,
-  takePresignUrl
-} from "@/store/presignPoolRepository";
 export { addSyncLog, getSyncLog } from "@/store/syncLogRepository";
 export { clearConfigurationAndData } from "@/store/storageRepository";
 export {

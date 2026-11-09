@@ -1,16 +1,11 @@
 import type { Attachment } from "@/types/attachment";
-import { takePresignUrl } from "@/store/presignPoolRepository";
+import { signOssUrl } from "@/oss/ossClient";
 import { sha256Hex } from "@/utils/hash";
 
-const PRESIGN_POOL_ERROR =
-  "没有匹配且未过期的 GET 预签名 URL，请重新生成预签名池";
+const OSS_ACCESS_ERROR = "OSS 拒绝访问，请检查 AccessKey 配置与权限";
 
 export async function getReadUrl(key: string): Promise<string> {
-  const presign = await takePresignUrl("get", key);
-  if (!presign) {
-    throw new Error(PRESIGN_POOL_ERROR);
-  }
-  return presign.url;
+  return signOssUrl("GET", key);
 }
 
 export async function fetchAttachmentBlob(attachment: Attachment): Promise<Blob> {
@@ -27,7 +22,7 @@ export async function fetchAttachmentBlob(attachment: Attachment): Promise<Blob>
   if (!response.ok) {
     throw new Error(
       response.status === 403
-        ? PRESIGN_POOL_ERROR
+        ? OSS_ACCESS_ERROR
         : `OSS 下载失败（HTTP ${response.status}）`
     );
   }

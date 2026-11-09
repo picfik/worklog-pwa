@@ -2,10 +2,8 @@ import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Device } from "@/types/device";
 import type { AppConfig, LocalData } from "@/types/storage";
-import { addPresignUrls } from "@/store/presignPoolRepository";
 import { loadData, saveData } from "@/store/dataRepository";
 import { setConfig } from "@/store/configRepository";
-import { parsePresignedUrls } from "@/oss/presignValidation";
 
 interface SetupPageProps {
   onConfigured: (config: AppConfig) => void;
@@ -17,7 +15,8 @@ export function SetupPage({ onConfigured }: SetupPageProps) {
   const [bucket, setBucket] = useState("");
   const [region, setRegion] = useState("");
   const [endpoint, setEndpoint] = useState("");
-  const [presignJson, setPresignJson] = useState("[]");
+  const [accessKeyId, setAccessKeyId] = useState("");
+  const [accessKeySecret, setAccessKeySecret] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -32,9 +31,12 @@ export function SetupPage({ onConfigured }: SetupPageProps) {
       setError("OSS bucket、region 和 endpoint 均为必填项");
       return;
     }
+    if (!accessKeyId.trim() || !accessKeySecret.trim()) {
+      setError("OSS AccessKeyId 和 AccessKeySecret 均为必填项");
+      return;
+    }
     setSaving(true);
     try {
-      const urls = parsePresignedUrls(presignJson);
       const deviceId = crypto.randomUUID();
       const now = new Date().toISOString();
       const config: AppConfig = {
@@ -43,14 +45,15 @@ export function SetupPage({ onConfigured }: SetupPageProps) {
         oss: {
           bucket: bucket.trim(),
           region: region.trim(),
-          endpoint: endpoint.trim()
+          endpoint: endpoint.trim(),
+          accessKeyId: accessKeyId.trim(),
+          accessKeySecret: accessKeySecret.trim()
         }
       };
       const device: Device = { id: deviceId, name: config.deviceName, lastSeenAt: now };
       const localData: LocalData = await loadData();
       localData.devices = [...localData.devices.filter((item) => item.id !== deviceId), device];
       await saveData(localData);
-      await addPresignUrls(urls);
       await setConfig(config);
       onConfigured(config);
       navigate("/", { replace: true });
@@ -72,7 +75,8 @@ export function SetupPage({ onConfigured }: SetupPageProps) {
         <p className="text-sm font-medium text-navy">首次设置</p>
         <h1 className="mt-1 text-2xl font-semibold text-slate-900">配置工作留痕</h1>
         <p className="mt-2 text-sm leading-6 text-slate-500">
-          设备信息和预签名 URL 仅保存在本机浏览器中。请勿在此填写 OSS 长期密钥。
+          设备信息和 OSS AccessKey 仅保存在本机浏览器（IndexedDB）中，不会进入代码仓库。
+          建议使用仅授予该 Bucket 读写权限的 RAM 子账号密钥。
         </p>
         <div className="mt-6 grid gap-4">
           <label className="grid gap-1.5 text-sm font-medium text-slate-700">
@@ -117,18 +121,29 @@ export function SetupPage({ onConfigured }: SetupPageProps) {
             />
           </label>
           <label className="grid gap-1.5 text-sm font-medium text-slate-700">
-            预签名 URL 池（JSON）
-            <textarea
-              rows={6}
+            OSS AccessKeyId
+            <input
+              required
+              autoComplete="off"
               spellCheck={false}
-              value={presignJson}
-              onChange={(event) => setPresignJson(event.target.value)}
-              placeholder={'[{"type":"put","url":"https://...","key":"worklog/example","expiresAt":"2026-11-09T12:00:00Z"}]'}
-              className="resize-y rounded-lg border border-slate-300 px-3 py-2.5 font-mono text-xs font-normal outline-none focus:border-blue-600"
+              value={accessKeyId}
+              onChange={(event) => setAccessKeyId(event.target.value)}
+              placeholder="LTAI..."
+              className="rounded-lg border border-slate-300 px-3 py-2.5 font-mono text-xs font-normal outline-none focus:border-blue-600"
             />
-            <span className="font-normal text-slate-500">
-              每项需包含 type（put/get）、url、key、expiresAt；可用空数组开始设置。
-            </span>
+          </label>
+          <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+            OSS AccessKeySecret
+            <input
+              required
+              type="password"
+              autoComplete="new-password"
+              spellCheck={false}
+              value={accessKeySecret}
+              onChange={(event) => setAccessKeySecret(event.target.value)}
+              placeholder="仅存于本机浏览器，不会上传"
+              className="rounded-lg border border-slate-300 px-3 py-2.5 font-mono text-xs font-normal outline-none focus:border-blue-600"
+            />
           </label>
         </div>
         {error && (

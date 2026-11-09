@@ -1,6 +1,6 @@
 import { getPendingUploads } from "@/store/pendingUploadsRepository";
-import { takeAttachmentPutUrl } from "@/store/presignPoolRepository";
 import { markUploaded } from "@/store/attachments";
+import { buildAttachmentKey, signOssUrl } from "@/oss/ossClient";
 import { sha256Hex } from "@/utils/hash";
 import type { Attachment } from "@/types/attachment";
 
@@ -40,7 +40,7 @@ function putWithProgress(
         reject(
           new Error(
             request.status === 403
-              ? "预签名 URL 已失效或 OSS 拒绝访问，请重新生成预签名池"
+              ? "OSS 拒绝访问，请检查 AccessKey 配置与权限"
               : `OSS 上传失败（HTTP ${request.status}）`
           )
         );
@@ -61,24 +61,16 @@ async function performPendingAttachmentUpload(
     throw new Error("本地待上传附件不存在，请重新选择文件");
   }
   const contentType = pending.attachment.mime || "application/octet-stream";
-  const presign = await takeAttachmentPutUrl(contentType);
-  if (!presign) {
-    throw new Error("没有可用的 PUT 预签名 URL，请重新生成预签名池");
-  }
-  if (!presign.key.trim()) {
-    throw new Error("PUT 预签名 URL 缺少 OSS 对象 key，请重新生成预签名池");
-  }
+  const objectKey = buildAttachmentKey(pending.attachment.name);
 
   const sha256 = await sha256Hex(await pending.blob.arrayBuffer());
   let lastError: Error | undefined;
   for (let attempt = 0; attempt < 4; attempt += 1) {
     try {
       onProgress(0);
-      const uploadBlob = presign.contentType && presign.contentType !== pending.blob.type
-        ? pending.blob.slice(0, pending.blob.size, presign.contentType)
-        : pending.blob;
-      await putWithProgress(presign.url, uploadBlob, onProgress);
-      return await markUploaded(attachmentId, presign.key, sha256);
+      const url = await signOssUrl("PUT", objectKey, contentType);
+      await putWithProgress(url, pending.blob, onProgress);
+      return await markUploaded(attachmentId, objectKey, sha256);
     } catch (error: unknown) {
       lastError = error instanceof Error ? error : new Error("附件上传失败");
       if (attempt < 3) {
@@ -88,7 +80,7 @@ async function performPendingAttachmentUpload(
   }
   throw new Error(
     lastError?.message ??
-      "附件上传失败，请检查网络及预签名 URL 并点击重试"
+      "附件上传失败，请检查网络及 OSS 配置后重试"
   );
 }
 
