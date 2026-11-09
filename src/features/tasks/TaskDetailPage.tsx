@@ -29,17 +29,8 @@ export function TaskDetailPage() {
     Object.values(data?.archives ?? {}).flatMap((shard: ArchiveShard) => shard.tasks).find((item) => item.id === id);
 
   useEffect(() => {
-    setEditing(
-      task?.status !== "archived" &&
-      (!isMobile || Boolean(initialFocus))
-    );
-  }, [isMobile, id, initialFocus, task?.status]);
-
-  useEffect(() => {
-    if (task?.status === "archived") {
-      setEditing(false);
-    }
-  }, [task?.status]);
+    setEditing(!isMobile || Boolean(initialFocus));
+  }, [isMobile, id, initialFocus]);
 
   const events = useMemo(() => {
     const activeEvents = (data?.statusHistory ?? []).filter((event) => event.taskId === id);
@@ -173,7 +164,7 @@ export function TaskDetailPage() {
           <p className="mt-3 text-sm text-slate-400">暂无留痕事件</p>
         )}
       </section>
-      {isMobile && task.status !== "archived" && (
+      {isMobile && (
         <div className="fixed inset-x-0 bottom-0 z-10 border-t border-slate-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
           <button
             type="button"

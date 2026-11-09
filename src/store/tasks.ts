@@ -1,5 +1,6 @@
 import type { HistoryEvent, HistoryEventType } from "@/types/history";
 import type { Task, TaskStatus } from "@/types/task";
+import type { LocalData } from "@/types/storage";
 import { getConfig } from "@/store/configRepository";
 import { loadData, markDirty } from "@/store/dataRepository";
 import { checkTransition } from "@/rules/gate";
@@ -124,7 +125,10 @@ export async function listTasks(filter: TaskFilter = {}): Promise<Task[]> {
 
 export async function updateTask(taskId: string, updates: TaskUpdate): Promise<Task> {
   const data = await loadData();
-  const task = data.tasks.find((item) => item.id === taskId);
+  const archivedEntry = Object.values(data.archives)
+    .flatMap((shard) => shard.tasks.map((task) => ({ shard, task })))
+    .find((entry) => entry.task.id === taskId);
+  const task = data.tasks.find((item) => item.id === taskId) ?? archivedEntry?.task;
   if (!task) {
     throw new Error("找不到可编辑的任务");
   }
@@ -218,14 +222,15 @@ export async function changeStatus(taskId: string, nextStatus: TaskStatus): Prom
     return archiveTask(taskId);
   }
   const data = await loadData();
-  const task = data.tasks.find((item) => item.id === taskId);
-  if (!task) {
-    throw new Error("找不到任务");
+  const taskIndex = data.tasks.findIndex((item) => item.id === taskId);
+  if (taskIndex < 0) {
+    return unarchiveTask(data, taskId, nextStatus);
   }
+  const task = data.tasks[taskIndex];
   const allowed: Record<TaskStatus, TaskStatus[]> = {
     todo: ["doing"],
     doing: ["todo", "done"],
-    done: [],
+    done: ["doing", "todo"],
     archived: []
   };
   if (!allowed[task.status].includes(nextStatus)) {
@@ -238,13 +243,45 @@ export async function changeStatus(taskId: string, nextStatus: TaskStatus): Prom
   const previousStatus = task.status;
   task.status = nextStatus;
   task.updatedAt = new Date().toISOString();
-  if (previousStatus === "todo" && nextStatus === "doing") {
+  if (nextStatus === "doing") {
     const hasBasisAttachment = data.attachments.some(
       (attachment) => attachment.taskId === taskId && attachment.role === "basis"
     );
     task.incomplete = !task.basisText.trim() && !hasBasisAttachment;
   }
   await emitHistory(taskId, "status_changed", previousStatus, nextStatus);
+  await markDirty();
+  notifyDataChanged();
+  return task;
+}
+
+async function unarchiveTask(
+  data: LocalData,
+  taskId: string,
+  nextStatus: TaskStatus
+): Promise<Task> {
+  const shardEntry = Object.entries(data.archives).find(([, shard]) =>
+    shard.tasks.some((item) => item.id === taskId)
+  );
+  const task = shardEntry?.[1].tasks.find((item) => item.id === taskId);
+  if (!shardEntry || !task) {
+    throw new Error("找不到任务");
+  }
+  const [, shard] = shardEntry;
+  shard.tasks = shard.tasks.filter((item) => item.id !== taskId);
+  const taskEvents = shard.historyEvents.filter((item) => item.taskId === taskId);
+  shard.historyEvents = shard.historyEvents.filter((item) => item.taskId !== taskId);
+  task.status = nextStatus;
+  task.updatedAt = new Date().toISOString();
+  if (nextStatus === "doing") {
+    const hasBasisAttachment = data.attachments.some(
+      (attachment) => attachment.taskId === taskId && attachment.role === "basis"
+    );
+    task.incomplete = !task.basisText.trim() && !hasBasisAttachment;
+  }
+  data.tasks.push(task);
+  data.statusHistory.push(...taskEvents);
+  await emitHistory(taskId, "status_changed", "archived", nextStatus);
   await markDirty();
   notifyDataChanged();
   return task;

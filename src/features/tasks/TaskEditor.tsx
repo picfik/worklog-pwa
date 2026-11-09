@@ -27,6 +27,13 @@ interface Draft {
 
 const editableStatuses: TaskStatus[] = ["todo", "doing", "done"];
 
+const transitionOptions: Record<TaskStatus, TaskStatus[]> = {
+  todo: ["doing"],
+  doing: ["todo", "done"],
+  done: ["todo", "doing"],
+  archived: ["todo", "doing", "done"]
+};
+
 function isTaskStatus(value: string): value is TaskStatus {
   return value === "todo" || value === "doing" || value === "done" || value === "archived";
 }
@@ -207,7 +214,6 @@ export function TaskEditor({
               const status = event.target.value;
               if (isTaskStatus(status)) void handleStatusChange(status);
             }}
-            disabled={task.status === "archived"}
             className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
           >
             {editableStatuses.map((status) => (
@@ -216,9 +222,8 @@ export function TaskEditor({
                 value={status}
                 disabled={
                   status !== task.status &&
-                  !(status === "doing" && task.status === "todo") &&
-                  !(task.status === "doing" && status === "todo") &&
-                  !(task.status === "doing" && status === "done" && (!data || !doneGate.ok))
+                  !(task.status === "doing" && status === "done" && doneGate.ok) &&
+                  !transitionOptions[task.status].includes(status)
                 }
               >
                 {taskStatusLabels[status]}
