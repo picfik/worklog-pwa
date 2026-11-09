@@ -79,7 +79,7 @@ export async function signOssUrl(
     Expires: String(expires),
     Signature: signature
   });
-  return `https://${bucketHost(oss.endpoint)}/${encodeKeyPath(key)}?${query.toString()}`;
+  return `https://${oss.bucket}.${bucketHost(oss.endpoint)}/${encodeKeyPath(key)}?${query.toString()}`;
 }
 
 export function sanitizeFileName(name: string): string {
