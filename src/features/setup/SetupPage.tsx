@@ -12,9 +12,9 @@ interface SetupPageProps {
 export function SetupPage({ onConfigured }: SetupPageProps) {
   const navigate = useNavigate();
   const [deviceName, setDeviceName] = useState("");
-  const [bucket, setBucket] = useState("");
-  const [region, setRegion] = useState("");
-  const [endpoint, setEndpoint] = useState("");
+  const [bucket, setBucket] = useState(() => import.meta.env.VITE_OSS_BUCKET ?? "");
+  const [region, setRegion] = useState(() => import.meta.env.VITE_OSS_REGION ?? "");
+  const [endpoint, setEndpoint] = useState(() => import.meta.env.VITE_OSS_ENDPOINT ?? "");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 

@@ -129,7 +129,7 @@ export function AppShell({ initialToast = "" }: { initialToast?: string }) {
     }
     function onDataChanged() {
       if (timer !== undefined) window.clearTimeout(timer);
-      const delay = window.matchMedia("(max-width: 639px)").matches ? 3000 : 800;
+      const delay = window.matchMedia("(max-width: 639px)").matches ? 1200 : 400;
       timer = window.setTimeout(() => {
         void refreshSyncStatus().then((status) => {
           if (navigator.onLine && status.pendingCount > 0) requestSync();
@@ -145,6 +145,10 @@ export function AppShell({ initialToast = "" }: { initialToast?: string }) {
     function onVisibilityChange() {
       if (document.visibilityState === "visible") requestSync();
     }
+    function pollRemote() {
+      if (document.visibilityState === "visible" && navigator.onLine) requestSync();
+    }
+    const pollTimer = window.setInterval(pollRemote, 30000);
     window.addEventListener("worklog:toast", onToast);
     window.addEventListener("worklog:sync-status", onSyncStatus);
     window.addEventListener("worklog:data-changed", onDataChanged);
@@ -155,6 +159,7 @@ export function AppShell({ initialToast = "" }: { initialToast?: string }) {
     return () => {
       active = false;
       if (timer !== undefined) window.clearTimeout(timer);
+      window.clearInterval(pollTimer);
       window.removeEventListener("worklog:toast", onToast);
       window.removeEventListener("worklog:sync-status", onSyncStatus);
       window.removeEventListener("worklog:data-changed", onDataChanged);
