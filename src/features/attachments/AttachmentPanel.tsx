@@ -99,6 +99,10 @@ export function AttachmentPanel({
     if (role === "other") {
       showToast("附件归为其他，请在巡检中检查未归类附件");
     }
+    if (attachment.ossKey) {
+      showToast(`同名同大小文件已存在，直接复用云端副本：${attachment.name}`);
+      return;
+    }
     await uploadOne(attachment.id);
   }, [taskId, uploadOne]);
 
@@ -268,12 +272,16 @@ export function AttachmentPanel({
   }
 
   async function handleDelete(attachment: Attachment) {
-    if (!window.confirm(`删除“${attachment.name}”的本地附件登记？已上传的 OSS 文件不会被删除。`)) {
+    if (
+      !window.confirm(
+        `删除“${attachment.name}”？若其他任务没有引用该文件，云端 OSS 文件也会同步删除。`
+      )
+    ) {
       return;
     }
     try {
       await deleteAttachment(attachment.id);
-      showToast("附件登记已删除");
+      showToast("附件已删除（云端文件将同步清理）");
     } catch (error: unknown) {
       toastError(error, "删除附件登记失败");
     }

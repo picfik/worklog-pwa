@@ -2,6 +2,7 @@ import { clearConfig } from "@/store/configRepository";
 import { clearStoredData } from "@/store/dataRepository";
 import { getDatabase } from "@/store/db";
 import { clearPendingUploads } from "@/store/pendingUploadsRepository";
+import { clearPendingDeletions } from "@/store/pendingDeletionsRepository";
 
 export async function clearConfigurationAndData(): Promise<void> {
   const database = await getDatabase();
@@ -9,6 +10,7 @@ export async function clearConfigurationAndData(): Promise<void> {
     clearConfig(),
     clearStoredData(),
     database.clear("presignPool"),
-    clearPendingUploads()
+    clearPendingUploads(),
+    clearPendingDeletions()
   ]);
 }

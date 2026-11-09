@@ -14,6 +14,12 @@ export {
   getPendingUploads,
   removePendingUpload
 } from "@/store/pendingUploadsRepository";
+export {
+  addPendingDeletion,
+  clearPendingDeletions,
+  getPendingDeletions,
+  removePendingDeletion
+} from "@/store/pendingDeletionsRepository";
 export { addSyncLog, getSyncLog } from "@/store/syncLogRepository";
 export { clearConfigurationAndData } from "@/store/storageRepository";
 export {

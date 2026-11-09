@@ -58,7 +58,7 @@ async function hmacSha1Base64(data: string, secret: string): Promise<string> {
 }
 
 export async function signOssUrl(
-  method: "GET" | "PUT",
+  method: "GET" | "PUT" | "DELETE",
   key: string,
   contentType?: string
 ): Promise<string> {

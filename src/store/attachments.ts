@@ -5,6 +5,7 @@ import {
   getPendingUploads,
   removePendingUpload
 } from "@/store/pendingUploadsRepository";
+import { addPendingDeletion } from "@/store/pendingDeletionsRepository";
 import { addHistory } from "@/store/tasks";
 import { extractDocumentNumbers } from "@/utils/documentNumber";
 import { readJpegDateTimeOriginal } from "@/utils/exif";
@@ -48,6 +49,9 @@ export async function addAttachment(input: AddAttachmentInput): Promise<Attachme
       console.warn(`读取照片拍摄时间失败：${file.name}`, error);
     }
   }
+  const reusable = data.attachments.find(
+    (item) => item.ossKey.trim().length > 0 && item.name === file.name && item.size === file.size
+  );
   const attachment: Attachment = {
     id: crypto.randomUUID(),
     taskId: input.taskId,
@@ -56,17 +60,20 @@ export async function addAttachment(input: AddAttachmentInput): Promise<Attachme
     mime: file.type || "application/octet-stream",
     ext: getExtension(file.name),
     size: file.size,
-    sha256: "",
-    ossKey: "",
-    uploadedAt: "",
+    sha256: reusable?.sha256 ?? "",
+    ossKey: reusable?.ossKey ?? "",
+    uploadedAt: reusable?.uploadedAt ?? "",
     ...(capturedAt ? { capturedAt } : {})
   };
   const database = await getDatabase();
-  const pendingId = await database.add("pendingUploads", {
-    blob: file,
-    attachment,
-    createdAt: new Date().toISOString()
-  });
+  let pendingId: number | undefined;
+  if (!reusable) {
+    pendingId = await database.add("pendingUploads", {
+      blob: file,
+      attachment,
+      createdAt: new Date().toISOString()
+    });
+  }
   let autoBasisChange: { from: string; to: string } | undefined;
   try {
     data.attachments.push(attachment);
@@ -108,7 +115,9 @@ export async function addAttachment(input: AddAttachmentInput): Promise<Attachme
     notifyDataChanged();
     return attachment;
   } catch (error: unknown) {
-    await removePendingUpload(pendingId);
+    if (pendingId !== undefined) {
+      await removePendingUpload(pendingId);
+    }
     throw error;
   }
 }
@@ -182,6 +191,12 @@ export async function deleteAttachment(attachmentId: string): Promise<void> {
       await removePendingUpload(upload.id);
     }
   }
+  const ossKey = attachment.ossKey.trim();
+  const stillReferenced =
+    ossKey.length > 0 && data.attachments.some((item) => item.ossKey === ossKey);
+  if (ossKey && !stillReferenced) {
+    await addPendingDeletion(ossKey);
+  }
   await addHistory({
     taskId: attachment.taskId,
     eventType: "notes_updated",
@@ -190,6 +205,9 @@ export async function deleteAttachment(attachmentId: string): Promise<void> {
   });
   await markDirty();
   notifyDataChanged();
+  if (ossKey && !stillReferenced && typeof window !== "undefined") {
+    window.dispatchEvent(new Event("worklog:sync-request"));
+  }
 }
 
 export async function listByTask(taskId: string): Promise<Attachment[]> {

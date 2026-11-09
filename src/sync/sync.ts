@@ -7,6 +7,10 @@ import {
   saveData
 } from "@/store/dataRepository";
 import { getPendingUploads } from "@/store/pendingUploadsRepository";
+import {
+  getPendingDeletions,
+  removePendingDeletion
+} from "@/store/pendingDeletionsRepository";
 import { addSyncLog, getSyncLog } from "@/store/syncLogRepository";
 import { signOssUrl } from "@/oss/ossClient";
 import {
@@ -119,11 +123,13 @@ async function getStatus(
   error?: string
 ): Promise<SyncStatus> {
   const pending = await getPendingUploads();
+  const deletions = await getPendingDeletions();
+  const changed = await countPendingChanges(local, pending.length);
   return {
     state,
     localVersion: local.manifest.version,
     remoteVersion,
-    pendingCount: await countPendingChanges(local, pending.length),
+    pendingCount: changed + deletions.length,
     lastSyncAt: local.manifest.lastSyncAt ?? "",
     ...(error === undefined ? {} : { error })
   };
@@ -209,6 +215,37 @@ async function getObject(name: ShardName, expectedHash: string): Promise<string>
     throw new Error(`远端分片 ${key} 的 SHA-256 校验失败`);
   }
   return content;
+}
+
+async function deleteObject(key: string): Promise<void> {
+  const url = await signOssUrl("DELETE", key);
+  let response: Response;
+  try {
+    response = await fetch(url, { method: "DELETE" });
+  } catch {
+    throw new Error(`网络中断，无法删除 ${key}`);
+  }
+  if (response.ok || response.status === 404) {
+    return;
+  }
+  throw new Error(
+    response.status === 403
+      ? `删除 ${key} 被 OSS 拒绝，请检查 AccessKey 配置与权限`
+      : `删除 ${key} 失败（HTTP ${response.status}）`
+  );
+}
+
+async function flushPendingDeletions(): Promise<void> {
+  const entries = await getPendingDeletions();
+  for (const entry of entries) {
+    try {
+      await deleteObject(entry.key);
+      await removePendingDeletion(entry.key);
+      await logSync("attachment-delete", true, `已删除 OSS 文件 ${entry.key}`);
+    } catch (error: unknown) {
+      await logSync("attachment-delete", false, errorMessage(error));
+    }
+  }
 }
 
 async function pushData(
@@ -314,6 +351,7 @@ async function performSync(choice?: ConflictChoice): Promise<SyncOutcome> {
     throw new Error("尚未设置设备，请先完成设备初始化");
   }
   publishStatus(await getStatus("syncing", data));
+  await flushPendingDeletions();
   const remoteManifest = await readManifest();
   data.lastRemoteVersion = remoteManifest.version;
   const decision = decideSync(data, remoteManifest);

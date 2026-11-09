@@ -49,6 +49,11 @@ export interface PendingUpload {
   createdAt?: string;
 }
 
+export interface PendingDeletion {
+  key: string;
+  createdAt: string;
+}
+
 export interface SyncLogEntry {
   id?: number;
   at: string;
