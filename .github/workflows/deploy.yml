@@ -32,6 +32,11 @@ jobs:
         env:
           GITHUB_ACTIONS: "true"
           GITHUB_REPOSITORY: ${{ github.repository }}
+          VITE_OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
+          VITE_OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+          VITE_OSS_BUCKET: ${{ vars.OSS_BUCKET }}
+          VITE_OSS_REGION: ${{ vars.OSS_REGION }}
+          VITE_OSS_ENDPOINT: ${{ vars.OSS_ENDPOINT }}
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:

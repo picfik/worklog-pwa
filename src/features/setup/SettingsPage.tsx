@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { AppConfig } from "@/types/storage";
-import { getConfig, setConfig as saveConfig } from "@/store/configRepository";
+import { getConfig } from "@/store/configRepository";
 import { clearConfigurationAndData } from "@/store/storageRepository";
 import { clearPendingUploads } from "@/store/pendingUploadsRepository";
 import { clearStoredData } from "@/store/dataRepository";
@@ -37,9 +37,6 @@ export function SettingsPage({ onConfigurationCleared }: SettingsPageProps) {
   const [config, setConfig] = useState<AppConfig>();
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [keyIdInput, setKeyIdInput] = useState("");
-  const [keySecretInput, setKeySecretInput] = useState("");
-  const [savingKeys, setSavingKeys] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(getSyncStatus());
   const [syncLog, setSyncLog] = useState<SyncLogEntry[]>([]);
   const [syncingNow, setSyncingNow] = useState(false);
@@ -64,36 +61,6 @@ export function SettingsPage({ onConfigurationCleared }: SettingsPageProps) {
     window.addEventListener("worklog:sync-status", onSyncStatus);
     return () => window.removeEventListener("worklog:sync-status", onSyncStatus);
   }, []);
-
-  async function handleSaveKeys() {
-    if (!config) return;
-    setError("");
-    setNotice("");
-    if (!keyIdInput.trim() || !keySecretInput.trim()) {
-      setError("AccessKeyId 和 AccessKeySecret 均为必填项");
-      return;
-    }
-    setSavingKeys(true);
-    try {
-      const updated: AppConfig = {
-        ...config,
-        oss: {
-          ...config.oss,
-          accessKeyId: keyIdInput.trim(),
-          accessKeySecret: keySecretInput.trim()
-        }
-      };
-      await saveConfig(updated);
-      setConfig(updated);
-      setKeyIdInput("");
-      setKeySecretInput("");
-      setNotice("OSS AccessKey 已更新");
-    } catch (saveError: unknown) {
-      setError(saveError instanceof Error ? saveError.message : "保存 AccessKey 失败");
-    } finally {
-      setSavingKeys(false);
-    }
-  }
 
   async function handleClearConfiguration() {
     if (!window.confirm("将清除本机配置、数据和 OSS 密钥，且无法撤销。是否继续？")) {
@@ -181,10 +148,8 @@ export function SettingsPage({ onConfigurationCleared }: SettingsPageProps) {
           </div>
           <div className="sm:col-span-2">
             <dt className="text-xs text-slate-500">OSS AccessKeyId</dt>
-            <dd className="mt-1 break-all font-mono text-xs">
-              {config.oss.accessKeyId
-                ? `${config.oss.accessKeyId.slice(0, 6)}****${config.oss.accessKeyId.slice(-4)}`
-                : "未配置"}
+            <dd className="mt-1 font-mono text-xs">
+              由 GitHub Actions 构建时注入（secrets：OSS_ACCESS_KEY_ID）
             </dd>
           </div>
         </dl>
@@ -258,42 +223,9 @@ export function SettingsPage({ onConfigurationCleared }: SettingsPageProps) {
       <section className="mt-6 border-t border-slate-100 pt-5">
         <h2 className="text-sm font-semibold text-slate-800">OSS AccessKey</h2>
         <p className="mt-1 text-xs leading-5 text-slate-500">
-          每次同步时由本机即时签名，无需再维护预签名 URL。密钥仅保存在本机浏览器；
-          建议使用仅授予该 Bucket PutObject/GetObject 权限的 RAM 子账号。
+          密钥由 GitHub Actions 构建时自动注入（secrets：OSS_ACCESS_KEY_ID / OSS_ACCESS_KEY_SECRET），
+          本页无需也无法修改。如需更换密钥，请在仓库 Actions 设置中更新后重新部署。
         </p>
-        <div className="mt-3 grid gap-3">
-          <label className="grid gap-1.5 text-sm font-medium text-slate-700">
-            AccessKeyId
-            <input
-              autoComplete="off"
-              spellCheck={false}
-              value={keyIdInput}
-              onChange={(event) => setKeyIdInput(event.target.value)}
-              placeholder={config?.oss.accessKeyId ? "留空则不修改，填写新值以替换" : "LTAI..."}
-              className="rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs outline-none focus:border-blue-600"
-            />
-          </label>
-          <label className="grid gap-1.5 text-sm font-medium text-slate-700">
-            AccessKeySecret
-            <input
-              type="password"
-              autoComplete="new-password"
-              spellCheck={false}
-              value={keySecretInput}
-              onChange={(event) => setKeySecretInput(event.target.value)}
-              placeholder="留空则不修改，填写新值以替换"
-              className="rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs outline-none focus:border-blue-600"
-            />
-          </label>
-        </div>
-        <button
-          type="button"
-          disabled={savingKeys}
-          onClick={() => void handleSaveKeys()}
-          className="mt-3 rounded-lg bg-navy px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-        >
-          {savingKeys ? "正在保存…" : "保存 AccessKey"}
-        </button>
       </section>
       <div className="mt-8 grid gap-3 border-t border-slate-100 pt-6 sm:grid-cols-2">
         <button

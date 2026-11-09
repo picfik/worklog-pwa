@@ -4,16 +4,32 @@ const URL_TTL_SECONDS = 600;
 
 /**
  * 浏览器端 OSS 即时签名客户端：
- * AccessKey 保存在本机 IndexedDB 的应用配置中，不进入代码仓库；
- * 每次上传/下载前用 Web Crypto 计算 OSS V1 URL 签名，URL 有效期 10 分钟。
+ * AccessKey 在 GitHub Actions 构建时通过 secrets 注入（VITE_OSS_* 环境变量），
+ * 运行时无需在设置页填写；每次上传/下载前用 Web Crypto 计算 OSS V1 URL 签名。
  */
 
-function assertKey(value: string | undefined, label: string): string {
-  const trimmed = value?.trim();
-  if (!trimmed) {
-    throw new Error(`尚未配置 OSS ${label}，请前往设置填写`);
+interface OssCredentials {
+  bucket: string;
+  endpoint: string;
+  accessKeyId: string;
+  accessKeySecret: string;
+}
+
+const MISSING_KEY_ERROR =
+  "OSS AccessKey 未在构建时注入：请在仓库 Actions secrets 配置 OSS_ACCESS_KEY_ID / OSS_ACCESS_KEY_SECRET（及 OSS_BUCKET / OSS_REGION / OSS_ENDPOINT 变量）后重新部署";
+
+function buildCredentials(storedBucket?: string, storedEndpoint?: string): OssCredentials {
+  const accessKeyId = import.meta.env.VITE_OSS_ACCESS_KEY_ID?.trim();
+  const accessKeySecret = import.meta.env.VITE_OSS_ACCESS_KEY_SECRET?.trim();
+  if (!accessKeyId || !accessKeySecret) {
+    throw new Error(MISSING_KEY_ERROR);
   }
-  return trimmed;
+  const bucket = import.meta.env.VITE_OSS_BUCKET?.trim() || storedBucket?.trim() || "";
+  const endpoint = import.meta.env.VITE_OSS_ENDPOINT?.trim() || storedEndpoint?.trim() || "";
+  if (!bucket || !endpoint) {
+    throw new Error("OSS Bucket/Endpoint 未配置：请在仓库 Actions variables 配置 OSS_BUCKET / OSS_ENDPOINT");
+  }
+  return { bucket, endpoint, accessKeyId, accessKeySecret };
 }
 
 function bucketHost(endpoint: string): string {
@@ -47,14 +63,7 @@ export async function signOssUrl(
   contentType?: string
 ): Promise<string> {
   const config = await getConfig();
-  const oss = config?.oss;
-  if (!oss) {
-    throw new Error("尚未配置 OSS，请先完成首次设置");
-  }
-  const accessKeyId = assertKey(oss.accessKeyId, "AccessKeyId");
-  const accessKeySecret = assertKey(oss.accessKeySecret, "AccessKeySecret");
-  const host = bucketHost(assertKey(oss.endpoint, "Endpoint"));
-  const bucket = assertKey(oss.bucket, "Bucket");
+  const oss = buildCredentials(config?.oss.bucket, config?.oss.endpoint);
 
   const expires = Math.floor(Date.now() / 1000) + URL_TTL_SECONDS;
   const stringToSign = [
@@ -62,15 +71,15 @@ export async function signOssUrl(
     "",
     contentType ?? "",
     String(expires),
-    `/${bucket}/${key}`
+    `/${oss.bucket}/${key}`
   ].join("\n");
-  const signature = await hmacSha1Base64(stringToSign, accessKeySecret);
+  const signature = await hmacSha1Base64(stringToSign, oss.accessKeySecret);
   const query = new URLSearchParams({
-    OSSAccessKeyId: accessKeyId,
+    OSSAccessKeyId: oss.accessKeyId,
     Expires: String(expires),
     Signature: signature
   });
-  return `https://${host}/${encodeKeyPath(key)}?${query.toString()}`;
+  return `https://${bucketHost(oss.endpoint)}/${encodeKeyPath(key)}?${query.toString()}`;
 }
 
 export function sanitizeFileName(name: string): string {
